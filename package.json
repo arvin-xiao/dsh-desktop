@@ -1,0 +1,69 @@
+{
+  "name": "dsh-desktop",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness (dsh) cross-platform desktop shell",
+  "main": "out/main/index.js",
+  "author": "dsh-desktop contributors",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development concurrently -k -n MAIN,RENDERER -c blue,magenta \"npm:dev:main\" \"npm:dev:renderer\"",
+    "dev:main": "tsup --config tsup.main.config.ts --watch --onSuccess \"wait-on tcp:5173 && electron .\"",
+    "dev:renderer": "vite",
+    "build": "npm run build:main && npm run build:renderer",
+    "build:main": "tsup --config tsup.main.config.ts",
+    "build:renderer": "vite build",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:mac": "npm run build && electron-builder --mac --universal",
+    "dist:linux": "npm run build && electron-builder --linux --x64",
+    "postinstall": "electron-builder install-app-deps",
+    "sync:dsh": "node scripts/sync-dsh-version.mjs"
+  },
+  "files": [
+    "out/**/*",
+    "!out/**/*.map",
+    "build/icon.png",
+    "build/icon.ico",
+    "build/icon.icns",
+    "package.json"
+  ],
+  "dependencies": {
+    "electron-log": "^5.2.0",
+    "electron-store": "^8.2.0",
+    "semver": "^7.6.3",
+    "tar": "^7.4.3",
+    "yauzl": "^3.2.0",
+    "yauzl-promise": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/semver": "^7.5.8",
+    "@types/yauzl": "^2.10.3",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "electron": "^31.4.0",
+    "electron-builder": "^25.0.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.2.4",
+    "typescript": "^5.5.4",
+    "vite": "^6.0.0",
+    "wait-on": "^8.0.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0",
+    "xterm-addon-web-links": "^0.9.0"
+  },
+  "build": {
+    "extraMetadata": {
+      "main": "out/main/index.js"
+    }
+  }
+}

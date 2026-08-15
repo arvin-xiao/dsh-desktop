@@ -1,0 +1,63 @@
+appId: com.deepseek.harness.desktop
+productName: DSH Desktop
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**/*
+  - "!out/**/*.map"
+  - package.json
+extraMetadata:
+  main: out/main/index.js
+asar: true
+compression: maximum
+# npm 打包时跳过 node-pty 的 postinstall（已经在 postinstall hook 中 install-app-deps 重建）
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: "DSH-Desktop-Setup-${version}-${arch}.${ext}"
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: DSH Desktop
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  artifactName: "DSH-Desktop-${version}-${arch}.${ext}"
+  icon: build/icon.icns
+  category: public.app-category.developer-tools
+  minimumSystemVersion: "11.0.0"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+dmg:
+  contents:
+    - { x: 130, y: 220, type: link, path: /Applications }
+    - { x: 410, y: 220, type: file }
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  artifactName: "DSH-Desktop-${version}-${arch}.${ext}"
+  icon: build/icon.png
+  category: Development
+  synopsis: DeepSeek Harness Desktop Application
+  description: Cross-platform desktop shell for DeepSeek Harness (dsh) agent framework.
