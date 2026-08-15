@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "description": "DeepSeek Harness (dsh) cross-platform desktop shell",
   "main": "out/main/index.js",
-  "author": "dsh-desktop contributors",
+  "author": {
+    "name": "arvin-xiao",
+    "email": "arvin-xiao@users.noreply.github.com",
+    "url": "https://github.com/arvin-xiao/dsh-desktop"
+  },
   "license": "MIT",
   "private": true,
   "scripts": {
@@ -19,7 +23,9 @@
     "dist:mac": "npm run build && electron-builder --mac --universal",
     "dist:linux": "npm run build && electron-builder --linux --x64",
     "postinstall": "electron-builder install-app-deps",
-    "sync:dsh": "node scripts/sync-dsh-version.mjs"
+    "sync:dsh": "node scripts/sync-dsh-version.mjs",
+    "release": "node scripts/make-release.mjs",
+    "release:dry": "DRY_RUN=1 node scripts/make-release.mjs"
   },
   "files": [
     "out/**/*",

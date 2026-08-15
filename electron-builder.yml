@@ -61,3 +61,4 @@ linux:
   category: Development
   synopsis: DeepSeek Harness Desktop Application
   description: Cross-platform desktop shell for DeepSeek Harness (dsh) agent framework.
+  maintainer: "arvin-xiao <arvin-xiao@users.noreply.github.com>"

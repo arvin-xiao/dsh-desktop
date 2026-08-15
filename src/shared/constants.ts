@@ -15,7 +15,7 @@ export const DSH_READY_CHECK_INTERVAL_MS = 500;
  * - 运行时用户可在 Settings 中覆盖（存储到 electron-store）
  * - npx 调用形如 `npx -y @deepseek-ai/dsh@<version> web ...`
  */
-export const DSH_DEFAULT_VERSION = 'latest';
+export const DSH_DEFAULT_VERSION = '0.1.0-rc.6';
 
 /** npm registry 地址，用于查询 dsh 最新版本 */
 export const NPM_REGISTRY = 'https://registry.npmjs.org';
