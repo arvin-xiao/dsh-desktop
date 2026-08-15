@@ -107,7 +107,8 @@ export default async function afterPack(context) {
     '--force', '--sign', '-', '--all-architectures',
     '--timestamp=none', '--generate-entitlement-der',
     '--identifier', appId,
-    '--requirements', '=',  // 用默认 designated requirement，避免自定义 requirement 被拒绝
+    // 注意：不要加 --requirements =（空 requirement 在 macOS 26 codesign 会语法报错）
+    // 让系统使用默认 designated requirement 即可
     appPath,
   ]);
 
