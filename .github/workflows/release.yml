@@ -118,7 +118,9 @@ jobs:
           restore-keys: |
             electron-ubuntu-${{ runner.os }}-
       - name: Build + Dist Linux
-        run: npm run dist:linux
+        run: |
+          npm run build
+          npx electron-builder --linux --x64 --publish never
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -153,7 +155,9 @@ jobs:
           restore-keys: |
             electron-win-${{ runner.os }}-
       - name: Build + Dist Win
-        run: npm run dist:win
+        run: |
+          npm run build
+          npx electron-builder --win --x64 --publish never
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -178,7 +182,9 @@ jobs:
           name: version-lock
           path: src/shared
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: |
+          pip3 install setuptools
+          npm ci --ignore-scripts
       - name: Cache Electron
         uses: actions/cache@v4
         with:
@@ -187,7 +193,9 @@ jobs:
           restore-keys: |
             electron-mac-${{ runner.os }}-
       - name: Build + Dist Mac
-        run: npm run dist:mac
+        run: |
+          npm run build
+          npx electron-builder --mac --universal --publish never
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
