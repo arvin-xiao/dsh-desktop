@@ -1,0 +1,321 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.*'           # e.g. v0.1.0+dsh0.1.0-rc.6
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Desktop version (e.g. 0.1.0) - leave empty to use package.json'
+        required: false
+        default: ''
+      dsh_version:
+        description: 'DSH version (e.g. 0.1.0-rc.6) - leave empty to auto query latest from npm'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+env:
+  ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+  ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+
+jobs:
+
+  # ---------- 准备：版本锁、环境变量输出 ----------
+  prepare:
+    name: Prepare versions
+    runs-on: ubuntu-latest
+    outputs:
+      desktop_version: ${{ steps.v.outputs.desktop_version }}
+      dsh_version:     ${{ steps.v.outputs.dsh_version }}
+      tag_name:        ${{ steps.v.outputs.tag_name }}
+      release_title:   ${{ steps.v.outputs.release_title }}
+      prerelease:      ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: v
+        name: Compute versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 如果是 tag 触发，从 GITHUB_REF_NAME 解析（格式 v<desktop>+dsh<dsh>）
+          # 如果是 workflow_dispatch，用输入或自动查 npm + package.json
+          DESKTOP_VER=""
+          DSH_VER=""
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            DESKTOP_VER="$(echo "$TAG" | sed -E 's/^v([^+]+)\+dsh(.+)$/\1/')"
+            DSH_VER="$(echo "$TAG"     | sed -E 's/^v([^+]+)\+dsh(.+)$/\2/')"
+            echo "[tag trigger] tag=$TAG desktop=$DESKTOP_VER dsh=$DSH_VER"
+          else
+            DESKTOP_VER="${{ github.event.inputs.version }}"
+            if [[ -z "$DESKTOP_VER" ]]; then
+              DESKTOP_VER="$(node -e "console.log(require('./package.json').version)")"
+            fi
+            DSH_VER="${{ github.event.inputs.dsh_version }}"
+            if [[ -z "$DSH_VER" ]]; then
+              echo "[dispatch] query npm latest..."
+              DSH_VER="$(npm view @deepseek-ai/dsh version --silent)"
+            fi
+            echo "[dispatch trigger] desktop=$DESKTOP_VER dsh=$DSH_VER"
+            # 锁定版本（提交到当前分支 main）
+            node scripts/sync-dsh-version.mjs "$DSH_VER" || true
+          fi
+
+          TAG="v${DESKTOP_VER}+dsh${DSH_VER}"
+          TITLE="DSH Desktop v${DESKTOP_VER} (dsh ${DSH_VER})"
+          PRERELEASE="false"
+          if echo "$DSH_VER" | grep -qE '(-rc\.|-alpha\.|-beta\.|-)'; then PRERELEASE="true"; fi
+
+          echo "desktop_version=$DESKTOP_VER" >> "$GITHUB_OUTPUT"
+          echo "dsh_version=$DSH_VER"         >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG"                >> "$GITHUB_OUTPUT"
+          echo "release_title=$TITLE"         >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE"       >> "$GITHUB_OUTPUT"
+          echo "  → tag=$TAG"
+          echo "  → prerelease=$PRERELEASE"
+      - name: Persist constants.ts (dsh version lock) for downstream jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-lock
+          path: src/shared/constants.ts
+          retention-days: 1
+
+  # ---------- Linux 打包 ----------
+  build-linux:
+    name: Build Linux
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Restore dsh version lock
+        uses: actions/download-artifact@v4
+        with:
+          name: version-lock
+          path: src/shared
+      - name: Install deps
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends libopenjp2-tools libasound2 libgbm1 \
+            libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libatspi2.0-0 libdrm2 libxkbcommon0
+          npm ci
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-ubuntu-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-ubuntu-${{ runner.os }}-
+      - name: Build + Dist Linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:linux
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-assets
+          path: |
+            release/*.AppImage
+            release/*.deb
+
+  # ---------- Windows 打包 ----------
+  build-win:
+    name: Build Windows
+    needs: prepare
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Restore dsh version lock
+        uses: actions/download-artifact@v4
+        with:
+          name: version-lock
+          path: src/shared
+      - name: Install deps
+        run: npm ci
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-win-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-win-${{ runner.os }}-
+      - name: Build + Dist Win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:win
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-assets
+          path: |
+            release/*.exe
+
+  # ---------- macOS 打包 ----------
+  build-mac:
+    name: Build macOS
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Restore dsh version lock
+        uses: actions/download-artifact@v4
+        with:
+          name: version-lock
+          path: src/shared
+      - name: Install deps
+        run: npm ci
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-mac-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-mac-${{ runner.os }}-
+      - name: Build + Dist Mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:mac
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-assets
+          path: |
+            release/*.dmg
+
+  # ---------- 创建 GitHub Release + 上传 assets ----------
+  release:
+    name: Create Release
+    needs: [prepare, build-linux, build-win, build-mac]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all assets
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+      - name: Flatten assets & generate SHASUMS
+        id: sha
+        shell: bash
+        run: |
+          mkdir -p release-assets/_flat
+          find release-assets -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.dmg' -o -name '*.rpm' -o -name '*.msi' \) \
+            -exec cp {} release-assets/_flat/ \;
+          cd release-assets/_flat
+          SHAFILE="../../SHASUMS-${{ needs.prepare.outputs.tag_name }}.txt"
+          sha256sum * > "$SHAFILE"
+          ls -lah .
+          echo "--- SHASUMS ---"
+          cat "$SHAFILE"
+          echo "shasum_file=$SHAFILE" >> "$GITHUB_OUTPUT"
+          # 输出文件列表
+          {
+            echo 'FILE_LIST<<EOF'
+            find . -maxdepth 1 -type f -printf '%f\n' | sort
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+      - name: Compute release body
+        id: body
+        shell: bash
+        run: |
+          TAG="${{ needs.prepare.outputs.tag_name }}"
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          DESKTOP="${{ needs.prepare.outputs.desktop_version }}"
+          DSH="${{ needs.prepare.outputs.dsh_version }}"
+          BODY="release-body.md"
+          {
+            echo "### 配套版本"
+            echo ""
+            echo "| 项目 | 版本 |"
+            echo "|---|---|"
+            echo "| **dsh-desktop** | \`${DESKTOP}\` |"
+            echo "| **@deepseek-ai/dsh** | \`${DSH}\` |"
+            echo ""
+            echo "### 下载"
+            echo ""
+            echo "| 平台 | 包 | SHA256 |"
+            echo "|---|---|---|"
+          } > "$BODY"
+
+          cd release-assets/_flat
+          SUMS="$(cat ../../SHASUMS-${TAG}.txt)"
+          while read -r sum fname; do
+            case "$fname" in
+              *.AppImage) PLAT="Linux (AppImage)" ;;
+              *.deb)      PLAT="Linux (deb)" ;;
+              *.exe)      PLAT="Windows (NSIS)" ;;
+              *.dmg)      PLAT="macOS (DMG)" ;;
+              *)          PLAT="Other" ;;
+            esac
+            LINK="https://github.com/${OWNER}/${REPO}/releases/download/${TAG}/${fname}"
+            SHORT="$(echo "$sum" | cut -c1-16)"
+            echo "| ${PLAT} | [${fname}](${LINK}) | \`${SHORT}…\` |" >> "../../$BODY"
+          done <<< "$SUMS"
+
+          {
+            SHA_LINK="https://github.com/${OWNER}/${REPO}/releases/download/${TAG}/SHASUMS-${TAG}.txt"
+            echo "| - | [SHASUMS-${TAG}.txt](${SHA_LINK}) | SHA256 清单 |"
+            echo ""
+            echo "### 本地校验"
+            echo ""
+            echo "\`\`\`bash"
+            echo "sha256sum -c SHASUMS-${TAG}.txt"
+            echo "\`\`\`"
+            echo ""
+            echo "---"
+            echo ""
+            echo "_该 release 与 **@deepseek-ai/dsh@${DSH}** 对齐，通过 \`npm run sync:dsh\` 锁定版本后构建。_"
+          } >> "../../$BODY"
+          cd ../..
+          cat "$BODY"
+          echo "body_file=$BODY" >> "$GITHUB_OUTPUT"
+      - name: Tag dispatch event (if triggered manually)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          TAG="${{ needs.prepare.outputs.tag_name }}"
+          echo "==> 创建 tag: $TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 还原 constants.ts 的锁
+          git checkout -- src/shared/constants.ts || true
+          # 若 tag 不存在就打一个
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag -a "$TAG" -m "${{ needs.prepare.outputs.release_title }}"
+            git push origin "refs/tags/${TAG}"
+          else
+            echo "tag $TAG 已存在，跳过创建"
+          fi
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag_name }}
+          name: ${{ needs.prepare.outputs.release_title }}
+          body_path: ${{ steps.body.outputs.body_file }}
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          make_latest: true
+          files: |
+            release-assets/_flat/*
+            SHASUMS-*.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
