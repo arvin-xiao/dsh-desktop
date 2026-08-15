@@ -7,6 +7,9 @@ files:
   - out/**/*
   - "!out/**/*.map"
   - package.json
+  - "!.cache/**"
+  - "!dist/**"
+  - "!release/**"
 extraMetadata:
   main: out/main/index.js
 asar: true

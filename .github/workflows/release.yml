@@ -147,6 +147,7 @@ jobs:
           name: version-lock
           path: src/shared
       - name: Install deps
+        shell: bash
         run: |
           npm ci --ignore-scripts
           rm -rf node_modules/node-pty
