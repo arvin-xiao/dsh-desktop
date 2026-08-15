@@ -170,8 +170,10 @@ jobs:
             dist/*.exe
 
   # ---------- macOS 打包 ----------
-  build-mac:
-    name: Build macOS
+  # 分 2 个 job 分别构建 arm64 和 x64（之前 universal 构建的切片签名 envelope
+  # 不一致，导致 macOS Sequoia 26 的 XProtect 判定为"包含恶意软件"级别）
+  build-mac-arm64:
+    name: Build macOS (arm64)
     needs: prepare
     runs-on: macos-latest
     env:
@@ -197,24 +199,89 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/electron-cache
-          key: electron-mac-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: electron-mac-arm64-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
           restore-keys: |
-            electron-mac-${{ runner.os }}-
-      - name: Build + Dist Mac
+            electron-mac-arm64-${{ runner.os }}-
+      - name: Build + Dist Mac arm64
         run: |
           npm run build
-          npx electron-builder --mac --universal --publish never
+          npx electron-builder --mac --arm64 --publish never
+      - name: 上传前签名自检
+        run: |
+          DMG=$(ls release/dsh-desktop-*-arm64.dmg 2>/dev/null || true)
+          [ -n "$DMG" ] && echo "Got DMG: $DMG" || true
+          # 临时挂载后检查签名详情（留 CI 日志）
+          if [ -n "$DMG" ]; then
+            MNTDIR=$(hdiutil attach "$DMG" -nobrowse -readonly | grep -E '/Volumes/' | head -1 | awk '{print $NF}')
+            if [ -n "$MNTDIR" ] && [ -d "$MNTDIR/DSH Desktop.app" ]; then
+              codesign -dvv "$MNTDIR/DSH Desktop.app" 2>&1 | head -15 || true
+              codesign --verify --deep --verbose=2 "$MNTDIR/DSH Desktop.app" 2>&1 | tail -5 || true
+              hdiutil detach "$MNTDIR" -quiet
+            fi
+          fi
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mac-assets
+          name: mac-assets-arm64
           path: |
-            dist/*.dmg
+            release/*-arm64.dmg
+
+  build-mac-x64:
+    name: Build macOS (x64)
+    needs: prepare
+    runs-on: macos-latest
+    env:
+      ELECTRON_CACHE: /tmp/electron-cache
+      ELECTRON_BUILDER_CACHE: /tmp/electron-builder-cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Restore dsh version lock
+        uses: actions/download-artifact@v4
+        with:
+          name: version-lock
+          path: src/shared
+      - name: Install deps
+        run: |
+          pip3 install --break-system-packages setuptools
+          npm ci --ignore-scripts
+          rm -rf node_modules/node-pty
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: /tmp/electron-cache
+          key: electron-mac-x64-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            electron-mac-x64-${{ runner.os }}-
+      - name: Build + Dist Mac x64
+        run: |
+          npm run build
+          npx electron-builder --mac --x64 --publish never
+      - name: 上传前签名自检
+        run: |
+          DMG=$(ls release/dsh-desktop-*-x64.dmg 2>/dev/null || true)
+          if [ -n "$DMG" ]; then
+            MNTDIR=$(hdiutil attach "$DMG" -nobrowse -readonly | grep -E '/Volumes/' | head -1 | awk '{print $NF}')
+            if [ -n "$MNTDIR" ] && [ -d "$MNTDIR/DSH Desktop.app" ]; then
+              codesign -dvv "$MNTDIR/DSH Desktop.app" 2>&1 | head -15 || true
+              codesign --verify --deep --verbose=2 "$MNTDIR/DSH Desktop.app" 2>&1 | tail -5 || true
+              hdiutil detach "$MNTDIR" -quiet
+            fi
+          fi
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-assets-x64
+          path: |
+            release/*-x64.dmg
 
   # ---------- 创建 GitHub Release + 上传 assets ----------
   release:
     name: Create Release
-    needs: [prepare, build-linux, build-win, build-mac]
+    needs: [prepare, build-linux, build-win, build-mac-arm64, build-mac-x64]
     runs-on: ubuntu-latest
     if: always()
     steps:

@@ -14,14 +14,52 @@ extraMetadata:
   main: out/main/index.js
 asar: true
 compression: maximum
-# npm 打包时跳过 node-pty 的 postinstall（已经在 postinstall hook 中 install-app-deps 重建）
 npmRebuild: false
 
+# ---------- macOS ----------
+# 注意：未签名 Electron 应用在 macOS 26 Sequoia 2+ 中，
+# 如果 Identifier 还是默认"Electron"且签名不完整（Info.plist not bound /
+# Sealed Resources=none），会被 XProtect 直接判定为"包含恶意软件"级别。
+# 所以必须：
+#   1) afterPack 钩子做完整 ad-hoc 重签（替换 Identifier + binding Info.plist）
+#   2) 分架构单 DMG（避免 universal 切片 envelope 不一致导致二次校验失败）
+afterPack: "./build/afterPack-mac-sign.mjs"
+
+mac:
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: dmg
+      arch: [x64]
+  artifactName: "dsh-desktop-${version}-${arch}.${ext}"
+  icon: build/icon.icns
+  category: public.app-category.developer-tools
+  minimumSystemVersion: "11.0.0"
+  # 未签名包：不要声明 hardenedRuntime，不要让 electron-builder 假做 notarize
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  # identity=null → electron-builder 不要尝试找 keychain 里的证书（CI 里没有）
+  identity: null
+  extendInfo:
+    CFBundleIdentifier: com.deepseek.harness.desktop
+    CFBundleName: DSH Desktop
+    CFBundleDisplayName: DSH Desktop
+    CFBundleShortVersionString: "${version}"
+    CFBundleVersion: "${build}"
+    LSMinimumSystemVersion: "11.0.0"
+    LSApplicationCategoryType: public.app-category.developer-tools
+    NSHumanReadableCopyright: "Copyright © 2026"
+
+dmg:
+  contents:
+    - { x: 130, y: 220, type: link, path: /Applications }
+    - { x: 410, y: 220, type: file }
+
+# ---------- Windows ----------
 win:
   target:
     - target: nsis
-      arch:
-        - x64
+      arch: [x64]
   artifactName: "DSH-Desktop-Setup-${version}-${arch}.${ext}"
   icon: build/icon.ico
 
@@ -33,32 +71,13 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: DSH Desktop
 
-mac:
-  target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
-  artifactName: "DSH-Desktop-${version}-${arch}.${ext}"
-  icon: build/icon.icns
-  category: public.app-category.developer-tools
-  minimumSystemVersion: "11.0.0"
-  hardenedRuntime: false
-  gatekeeperAssess: false
-
-dmg:
-  contents:
-    - { x: 130, y: 220, type: link, path: /Applications }
-    - { x: 410, y: 220, type: file }
-
+# ---------- Linux ----------
 linux:
   target:
     - target: AppImage
-      arch:
-        - x64
+      arch: [x64]
     - target: deb
-      arch:
-        - x64
+      arch: [x64]
   artifactName: "DSH-Desktop-${version}-${arch}.${ext}"
   icon: build/icon.png
   category: Development
