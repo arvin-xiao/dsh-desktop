@@ -107,9 +107,9 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends libopenjp2-tools libasound2 libgbm1 \
+          sudo apt-get install -y --no-install-recommends libopenjp2-tools libasound2t64 libgbm1 \
             libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libatspi2.0-0 libdrm2 libxkbcommon0
-          npm ci
+          npm ci --ignore-scripts
       - name: Cache Electron
         uses: actions/cache@v4
         with:
@@ -118,16 +118,14 @@ jobs:
           restore-keys: |
             electron-ubuntu-${{ runner.os }}-
       - name: Build + Dist Linux
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run dist:linux
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-assets
           path: |
-            release/*.AppImage
-            release/*.deb
+            dist/*.AppImage
+            dist/*.deb
 
   # ---------- Windows 打包 ----------
   build-win:
@@ -146,7 +144,7 @@ jobs:
           name: version-lock
           path: src/shared
       - name: Install deps
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Cache Electron
         uses: actions/cache@v4
         with:
@@ -155,15 +153,13 @@ jobs:
           restore-keys: |
             electron-win-${{ runner.os }}-
       - name: Build + Dist Win
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run dist:win
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: win-assets
           path: |
-            release/*.exe
+            dist/*.exe
 
   # ---------- macOS 打包 ----------
   build-mac:
@@ -182,7 +178,7 @@ jobs:
           name: version-lock
           path: src/shared
       - name: Install deps
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Cache Electron
         uses: actions/cache@v4
         with:
@@ -191,15 +187,13 @@ jobs:
           restore-keys: |
             electron-mac-${{ runner.os }}-
       - name: Build + Dist Mac
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run dist:mac
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mac-assets
           path: |
-            release/*.dmg
+            dist/*.dmg
 
   # ---------- 创建 GitHub Release + 上传 assets ----------
   release:
