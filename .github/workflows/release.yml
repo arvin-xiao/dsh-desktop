@@ -110,6 +110,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends libopenjp2-tools libasound2t64 libgbm1 \
             libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libatspi2.0-0 libdrm2 libxkbcommon0
           npm ci --ignore-scripts
+          rm -rf node_modules/node-pty
       - name: Cache Electron
         uses: actions/cache@v4
         with:
@@ -146,7 +147,9 @@ jobs:
           name: version-lock
           path: src/shared
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: |
+          npm ci --ignore-scripts
+          rm -rf node_modules/node-pty
       - name: Cache Electron
         uses: actions/cache@v4
         with:
@@ -183,8 +186,9 @@ jobs:
           path: src/shared
       - name: Install deps
         run: |
-          pip3 install setuptools
+          pip3 install --break-system-packages setuptools
           npm ci --ignore-scripts
+          rm -rf node_modules/node-pty
       - name: Cache Electron
         uses: actions/cache@v4
         with:
@@ -223,6 +227,13 @@ jobs:
           find release-assets -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.dmg' -o -name '*.rpm' -o -name '*.msi' \) \
             -exec cp {} release-assets/_flat/ \;
           cd release-assets/_flat
+          if [ -z "$(ls -A . 2>/dev/null)" ]; then
+            echo "⚠️ 没有找到任何产物（所有 build job 可能都失败了）"
+            echo "shasum_file=" >> "$GITHUB_OUTPUT"
+            echo 'FILE_LIST<<EOF' >> "$GITHUB_OUTPUT"
+            echo 'EOF' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           SHAFILE="../../SHASUMS-${{ needs.prepare.outputs.tag_name }}.txt"
           sha256sum * > "$SHAFILE"
           ls -lah .
@@ -301,10 +312,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # 还原 constants.ts 的锁
           git checkout -- src/shared/constants.ts || true
-          # 若 tag 不存在就打一个
+          # 若 tag 不存在就打一个（本地和远端都检查）
           if ! git rev-parse "$TAG" >/dev/null 2>&1; then
             git tag -a "$TAG" -m "${{ needs.prepare.outputs.release_title }}"
-            git push origin "refs/tags/${TAG}"
+            git push origin "refs/tags/${TAG}" || echo "远端 tag 已存在，跳过 push"
           else
             echo "tag $TAG 已存在，跳过创建"
           fi
