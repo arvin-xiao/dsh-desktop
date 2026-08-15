@@ -205,26 +205,21 @@ jobs:
       - name: Build + Dist Mac arm64
         run: |
           npm run build
-          npx electron-builder --mac --arm64 --publish never
+          # electron-builder 读取项目根目录 electron-builder.yml 里的 afterPack 配置
+          npx electron-builder --config electron-builder.yml --mac --arm64 --publish never
       - name: 上传前签名自检
         run: |
-          DMG=$(ls release/dsh-desktop-*-arm64.dmg 2>/dev/null || true)
-          [ -n "$DMG" ] && echo "Got DMG: $DMG" || true
-          # 临时挂载后检查签名详情（留 CI 日志）
-          if [ -n "$DMG" ]; then
-            MNTDIR=$(hdiutil attach "$DMG" -nobrowse -readonly | grep -E '/Volumes/' | head -1 | awk '{print $NF}')
-            if [ -n "$MNTDIR" ] && [ -d "$MNTDIR/DSH Desktop.app" ]; then
-              codesign -dvv "$MNTDIR/DSH Desktop.app" 2>&1 | head -15 || true
-              codesign --verify --deep --verbose=2 "$MNTDIR/DSH Desktop.app" 2>&1 | tail -5 || true
-              hdiutil detach "$MNTDIR" -quiet
-            fi
-          fi
+          # electron-builder 的 directories.output = release
+          DMG=$(ls release/dsh-desktop-*-arm64.dmg 2>/dev/null || ls dist/dsh-desktop-*-arm64.dmg 2>/dev/null || true)
+          echo "DMG glob = $DMG"
+          ls -lah release/ dist/ 2>/dev/null || true
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mac-assets-arm64
           path: |
             release/*-arm64.dmg
+            dist/*-arm64.dmg
 
   build-mac-x64:
     name: Build macOS (x64)
@@ -259,24 +254,19 @@ jobs:
       - name: Build + Dist Mac x64
         run: |
           npm run build
-          npx electron-builder --mac --x64 --publish never
+          npx electron-builder --config electron-builder.yml --mac --x64 --publish never
       - name: 上传前签名自检
         run: |
-          DMG=$(ls release/dsh-desktop-*-x64.dmg 2>/dev/null || true)
-          if [ -n "$DMG" ]; then
-            MNTDIR=$(hdiutil attach "$DMG" -nobrowse -readonly | grep -E '/Volumes/' | head -1 | awk '{print $NF}')
-            if [ -n "$MNTDIR" ] && [ -d "$MNTDIR/DSH Desktop.app" ]; then
-              codesign -dvv "$MNTDIR/DSH Desktop.app" 2>&1 | head -15 || true
-              codesign --verify --deep --verbose=2 "$MNTDIR/DSH Desktop.app" 2>&1 | tail -5 || true
-              hdiutil detach "$MNTDIR" -quiet
-            fi
-          fi
+          DMG=$(ls release/dsh-desktop-*-x64.dmg 2>/dev/null || ls dist/dsh-desktop-*-x64.dmg 2>/dev/null || true)
+          echo "DMG glob = $DMG"
+          ls -lah release/ dist/ 2>/dev/null || true
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mac-assets-x64
           path: |
             release/*-x64.dmg
+            dist/*-x64.dmg
 
   # ---------- 创建 GitHub Release + 上传 assets ----------
   release:
