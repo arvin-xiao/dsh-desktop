@@ -24,11 +24,20 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
   return (
     <div className="titlebar">
       <div className="brand">
-        <div className="brand-badge">D</div>
-        <div>DSH Desktop</div>
-        <div className="badge" style={{ marginLeft: 4 }}>
-          {status.url ? status.url.replace('http://', '') : 'local'}
+        <div className="brand-badge" title="DeepSeek Harness">
+          <DeepSeekLogoMark />
         </div>
+        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+          <div style={{ fontWeight: 700, letterSpacing: 0.2 }}>DSH Desktop</div>
+          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 500, marginTop: 2 }}>
+            DeepSeek Harness
+          </div>
+        </div>
+        {status.url && (
+          <div className="badge" style={{ marginLeft: 4 }}>
+            {status.url.replace('http://', '')}
+          </div>
+        )}
       </div>
 
       <div className="spacer" />
@@ -84,5 +93,21 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
     </div>
   );
 };
+
+// ---- DeepSeek brand logo mark (matches CSS gradient block) ----
+const DeepSeekLogoMark: React.FC = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+    <defs>
+      <linearGradient id="tblogo-g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#fff" stopOpacity="0.98"/>
+        <stop offset="100%" stopColor="#fff" stopOpacity="0.88"/>
+      </linearGradient>
+    </defs>
+    <path
+      d="M8.2 5.3c.5 0 .8.4.8.9V17.8c0 .5-.3.9-.8.9s-.8-.4-.8-.9V6.2c0-.5.3-.9.8-.9Zm3.34 0h1.9c2.8 0 5 2 5 4.6v2.2c0 2.6-2.2 4.6-5 4.6h-1.9c-.4 0-.8-.4-.8-.9V6.2c0-.5.4-.9.8-.9Zm0 1.8v5.8h1.9c1.6 0 3.3-.9 3.3-2.9v-.1c0-1.9-1.7-2.8-3.3-2.8h-1.9Z"
+      fill="url(#tblogo-g)"
+    />
+  </svg>
+);
 
 export default TitleBar;

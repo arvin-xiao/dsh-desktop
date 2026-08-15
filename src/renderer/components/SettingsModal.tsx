@@ -62,228 +62,296 @@ const SettingsModal: React.FC<Props> = ({ settings, envReport, onClose, onChange
   return (
     <div className="modal-mask" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal" role="dialog" aria-modal="true">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3>Settings</h3>
-          <button className="btn" onClick={onClose}>Close</button>
-        </div>
-
-        <h4 style={{ margin: '16px 0 6px', fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Runtime
-        </h4>
-
-        <div className="modal-row">
-          <label>Preferred port</label>
-          <input
-            type="number"
-            min={1024}
-            max={65535}
-            value={s.dsh.preferredPort}
-            onChange={(e) => onChange({ dsh: { ...s.dsh, preferredPort: clamp(+e.target.value, 1024, 65535) } })}
-          />
-        </div>
-
-        <div className="modal-row">
-          <label>Auto-start DSH on launch</label>
-          <Toggle
-            on={s.dsh.autoStart}
-            onChange={(v) => onChange({ dsh: { ...s.dsh, autoStart: v } })}
-          />
-        </div>
-
-        <div className="modal-row">
-          <label>Default profile preset</label>
-          <select
-            value={s.dsh.profilePreset}
-            onChange={(e) => onChange({ dsh: { ...s.dsh, profilePreset: e.target.value as any } })}
-          >
-            <option value="standard">Standard (recommended)</option>
-            <option value="code">Code mode</option>
-            <option value="minimal">Minimal</option>
-            <option value="creator">Creator</option>
-          </select>
-        </div>
-
-        <h4 style={{ margin: '16px 0 6px', fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          DSH Version Sync
-        </h4>
-
-        <div className="modal-row">
-          <label>
-            Target version
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400, marginTop: 2 }}>
-              Pin a specific semver or use <code>latest</code>
+        {/* ---- Modal Header ---- */}
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 9,
+              background: 'var(--ds-gradient)',
+              color: 'white', display: 'grid', placeItems: 'center',
+              boxShadow: '0 4px 10px rgba(77,107,254,0.28)',
+              fontWeight: 700, fontSize: 14,
+            }}>
+              <DeepSeekLogoMark />
             </div>
-          </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <input
-              type="text"
-              value={s.dsh.version}
-              placeholder="latest"
-              onChange={(e) => onChange({ dsh: { ...s.dsh, version: e.target.value } })}
-              style={{ width: 120 }}
-            />
+            <div>
+              <h3 style={{ margin: 0, lineHeight: 1.2 }}>设置 / Settings</h3>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                自定义 DSH Desktop 运行行为
+              </div>
+            </div>
           </div>
-        </div>
-
-        <div className="modal-row">
-          <label>
-            Version status
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400, marginTop: 2 }}>
-              {versionInfo ? (
-                <>
-                  Installed: <strong>{versionInfo.installedVersion || '—'}</strong>
-                  {' / '}
-                  Latest: <strong>{versionInfo.latestVersion || '—'}</strong>
-                  {versionInfo.updateAvailable && (
-                    <span style={{ color: 'var(--accent, #3b82f6)', marginLeft: 6 }}>
-                      Update available
-                    </span>
-                  )}
-                  {versionInfo.error && (
-                    <span style={{ color: '#ef4444', marginLeft: 6 }}>{versionInfo.error}</span>
-                  )}
-                </>
-              ) : (
-                <>Click "Check" to query npm registry</>
-              )}
-            </div>
-          </label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              className="btn"
-              disabled={checking}
-              onClick={() => void handleCheckUpdate()}
-            >
-              {checking ? 'Checking…' : 'Check'}
-            </button>
-            <button
-              className="btn primary"
-              disabled={upgrading || !versionInfo?.updateAvailable}
-              onClick={() => void handleUpgrade()}
-            >
-              {upgrading ? 'Upgrading…' : 'Upgrade'}
-            </button>
-          </div>
-        </div>
-
-        {upgradeLog && (
-          <div className="modal-row">
-            <pre style={{
-              width: '100%',
-              maxHeight: 120,
-              overflow: 'auto',
-              fontSize: 10,
-              lineHeight: 1.4,
-              background: 'rgba(0,0,0,0.3)',
-              padding: 8,
-              borderRadius: 4,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
-            }}>{upgradeLog}</pre>
-          </div>
-        )}
-
-        <h4 style={{ margin: '16px 0 6px', fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Node.js Environment
-        </h4>
-
-        <div className="modal-row">
-          <label>
-            Use system Node.js (requires &ge; v{MIN_NODE_VERSION})
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400, marginTop: 2 }}>
-              Current: {envReport?.systemNode?.version || 'not found'} {systemNodeOK ? '✓' : '✗'}
-            </div>
-          </label>
-          <Toggle
-            on={s.env.useSystemNode}
-            onChange={(v) => onChange({ env: { ...s.env, useSystemNode: v } })}
-          />
-        </div>
-
-        <div className="modal-row">
-          <label>
-            Portable (bundled) Node.js
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 400, marginTop: 2 }}>
-              Version: {s.env.bundledNodeVersion} — {bundledExists ? 'Cached ✓' : 'Not downloaded'}
-            </div>
-          </label>
-          <button className="btn primary" onClick={() => void onDownloadNode()}>
-            {bundledExists ? 'Re-download' : 'Download now'}
+          <button className="btn ghost" onClick={onClose} title="Close (Esc)">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 1l12 12M13 1L1 13"/></svg>
           </button>
         </div>
 
-        <div className="modal-row">
-          <label>Skip Node.js version check (not recommended)</label>
-          <Toggle
-            on={s.env.skipNodeVersionCheck}
-            onChange={(v) => onChange({ env: { ...s.env, skipNodeVersionCheck: v } })}
-          />
-        </div>
+        {/* ---- Modal Body ---- */}
+        <div className="modal-body">
 
-        <div className="modal-row">
-          <label>Effective Node.js path (read-only)</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="badge" title={effectivePath}>{truncate(effectivePath, 32)}</span>
-            <button
-              className="btn"
-              title="Show in folder"
-              disabled={!envReport?.bundledNode}
-              onClick={() => envReport?.bundledNode && void window.dsh.shell.showItemInFolder(envReport.bundledNode.path)}
+          {/* =====  Runtime  ===== */}
+          <div className="modal-section-title">运行时 / Runtime</div>
+
+          <div className="modal-row">
+            <label>
+              首选端口 Preferred port
+              <span className="hint">DSH Web 界面监听的本地端口</span>
+            </label>
+            <input
+              type="number"
+              min={1024}
+              max={65535}
+              value={s.dsh.preferredPort}
+              onChange={(e) => onChange({ dsh: { ...s.dsh, preferredPort: clamp(+e.target.value, 1024, 65535) } })}
+            />
+          </div>
+
+          <div className="modal-row">
+            <label>
+              启动应用时自动运行 DSH
+              <span className="hint">Auto-start DSH on launch</span>
+            </label>
+            <Toggle
+              on={s.dsh.autoStart}
+              onChange={(v) => onChange({ dsh: { ...s.dsh, autoStart: v } })}
+            />
+          </div>
+
+          <div className="modal-row">
+            <label>
+              默认配置预设 Default profile preset
+              <span className="hint">首次启动 DSH 时加载的默认配置</span>
+            </label>
+            <select
+              value={s.dsh.profilePreset}
+              onChange={(e) => onChange({ dsh: { ...s.dsh, profilePreset: e.target.value as any } })}
             >
-              Reveal
+              <option value="standard">Standard（推荐）</option>
+              <option value="code">Code mode</option>
+              <option value="minimal">Minimal</option>
+              <option value="creator">Creator</option>
+            </select>
+          </div>
+
+          {/* =====  DSH Version Sync  ===== */}
+          <div className="modal-section-title">版本同步 / DSH Version Sync</div>
+
+          <div className="modal-row">
+            <label>
+              目标版本 Target version
+              <span className="hint">锁定到具体 semver，或使用 <code>latest</code> 保持最新</span>
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="text"
+                value={s.dsh.version}
+                placeholder="latest"
+                onChange={(e) => onChange({ dsh: { ...s.dsh, version: e.target.value } })}
+                style={{ width: 140 }}
+              />
+            </div>
+          </div>
+
+          <div className="modal-row">
+            <label>
+              版本状态 Version status
+              <span className="hint">
+                {versionInfo ? (
+                  <span style={{ fontSize: 'inherit' }}>
+                    已安装：<strong style={{ color: 'var(--text)' }}>{versionInfo.installedVersion || '—'}</strong>
+                    {'  /  '}
+                    最新：<strong style={{ color: 'var(--text)' }}>{versionInfo.latestVersion || '—'}</strong>
+                    {versionInfo.updateAvailable && (
+                      <span className="badge warn" style={{ marginLeft: 8 }}>
+                        ↑ Update available
+                      </span>
+                    )}
+                    {versionInfo.error && (
+                      <span className="badge err" style={{ marginLeft: 8 }}>
+                        {versionInfo.error}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <>点击右侧 "Check" 向 npm registry 查询</>
+                )}
+              </span>
+            </label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                className="btn"
+                disabled={checking}
+                onClick={() => void handleCheckUpdate()}
+              >
+                {checking ? 'Checking…' : 'Check'}
+              </button>
+              <button
+                className="btn primary"
+                disabled={upgrading || !versionInfo?.updateAvailable}
+                onClick={() => void handleUpgrade()}
+              >
+                {upgrading ? 'Upgrading…' : 'Upgrade'}
+              </button>
+            </div>
+          </div>
+
+          {upgradeLog && (
+            <div style={{ margin: '10px 0 4px' }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600, letterSpacing: '0.04em' }}>
+                Upgrade Log
+              </div>
+              <div className="upgrade-log">{upgradeLog}</div>
+            </div>
+          )}
+
+          {/* =====  Node.js Environment  ===== */}
+          <div className="modal-section-title">Node.js 环境 / Environment</div>
+
+          <div className="modal-row">
+            <label>
+              使用系统 Node.js（需 &ge; v{MIN_NODE_VERSION}）
+              <span className="hint">
+                当前版本：{envReport?.systemNode?.version || '未找到'}
+                &nbsp;
+                <strong style={{ color: systemNodeOK ? 'var(--ok)' : 'var(--err)' }}>
+                  {systemNodeOK ? '✓ 满足要求' : '✗ 不满足'}
+                </strong>
+              </span>
+            </label>
+            <Toggle
+              on={s.env.useSystemNode}
+              onChange={(v) => onChange({ env: { ...s.env, useSystemNode: v } })}
+            />
+          </div>
+
+          <div className="modal-row">
+            <label>
+              便携版（内置）Node.js
+              <span className="hint">
+                版本 {s.env.bundledNodeVersion} —{' '}
+                {bundledExists ? (
+                  <span style={{ color: 'var(--ok)', fontWeight: 600 }}>已缓存 ✓</span>
+                ) : (
+                  <span style={{ color: 'var(--text-dim)' }}>未下载</span>
+                )}
+              </span>
+            </label>
+            <button className="btn primary" onClick={() => void onDownloadNode()}>
+              {bundledExists ? 'Re-download' : 'Download now'}
             </button>
           </div>
-        </div>
 
-        <h4 style={{ margin: '16px 0 6px', fontSize: 12, color: 'var(--text-dim)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Appearance &amp; Behaviour
-        </h4>
+          <div className="modal-row">
+            <label>
+              跳过 Node.js 版本检查
+              <span className="hint">不推荐，可能导致 DSH 无法正常启动</span>
+            </label>
+            <Toggle
+              on={s.env.skipNodeVersionCheck}
+              onChange={(v) => onChange({ env: { ...s.env, skipNodeVersionCheck: v } })}
+            />
+          </div>
 
-        <div className="modal-row">
-          <label>Minimize to tray instead of quitting</label>
-          <Toggle
-            on={s.app.minimizeToTray}
-            onChange={(v) => onChange({ app: { ...s.app, minimizeToTray: v } })}
-          />
-        </div>
+          <div className="modal-row">
+            <label>
+              实际使用的 Node.js 路径
+              <span className="hint">只读，根据上方设置自动选择</span>
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="badge" title={effectivePath}>{truncate(effectivePath, 32)}</span>
+              <button
+                className="btn"
+                title="Show in folder"
+                disabled={!envReport?.bundledNode}
+                onClick={() => envReport?.bundledNode && void window.dsh.shell.showItemInFolder(envReport.bundledNode.path)}
+              >
+                Reveal
+              </button>
+            </div>
+          </div>
 
-        <div className="modal-row">
-          <label>Open at login (auto-start on boot)</label>
-          <Toggle
-            on={s.app.startOnLogin}
-            onChange={(v) => onChange({ app: { ...s.app, startOnLogin: v } })}
-          />
-        </div>
+          {/* =====  Appearance & Behaviour  ===== */}
+          <div className="modal-section-title">外观 &amp; 行为 / Appearance</div>
 
-        <div className="modal-row">
-          <label>Theme</label>
-          <select
-            value={s.app.theme}
-            onChange={(e) => onChange({ app: { ...s.app, theme: e.target.value as any } })}
-          >
-            <option value="system">Follow system</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </div>
+          <div className="modal-row">
+            <label>
+              关闭窗口时最小化到托盘
+              <span className="hint">Minimize to tray instead of quitting（关闭窗口后进程保持运行）</span>
+            </label>
+            <Toggle
+              on={s.app.minimizeToTray}
+              onChange={(v) => onChange({ app: { ...s.app, minimizeToTray: v } })}
+            />
+          </div>
 
-        <div className="modal-row">
-          <label>Language</label>
-          <select
-            value={s.app.language}
-            onChange={(e) => onChange({ app: { ...s.app, language: e.target.value as any } })}
-          >
-            <option value="zh-CN">简体中文</option>
-            <option value="en-US">English</option>
-          </select>
-        </div>
+          <div className="modal-row">
+            <label>
+              开机自启动
+              <span className="hint">Open at login（系统启动后自动运行应用）</span>
+            </label>
+            <Toggle
+              on={s.app.startOnLogin}
+              onChange={(v) => onChange({ app: { ...s.app, startOnLogin: v } })}
+            />
+          </div>
 
+          <div className="modal-row">
+            <label>主题 Theme</label>
+            <select
+              value={s.app.theme}
+              onChange={(e) => onChange({ app: { ...s.app, theme: e.target.value as any } })}
+            >
+              <option value="system">跟随系统 Follow system</option>
+              <option value="light">浅色 Light</option>
+              <option value="dark">深色 Dark</option>
+            </select>
+          </div>
+
+          <div className="modal-row">
+            <label>界面语言 Language</label>
+            <select
+              value={s.app.language}
+              onChange={(e) => onChange({ app: { ...s.app, language: e.target.value as any } })}
+            >
+              <option value="zh-CN">简体中文</option>
+              <option value="en-US">English</option>
+            </select>
+          </div>
+
+        </div> {/* end modal-body */}
+
+        {/* ---- Modal Actions ---- */}
         <div className="modal-actions">
-          <button className="btn" onClick={onClose}>Close</button>
+          <button className="btn primary" onClick={onClose}>
+            完成 Done
+          </button>
         </div>
       </div>
     </div>
   );
+};
+
+// ---- DeepSeek logo mark (brand icon) ----
+const DeepSeekLogoMark: React.FC = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <defs>
+      <linearGradient id="ds-logo-g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#fff" stopOpacity="0.98"/>
+        <stop offset="100%" stopColor="#fff" stopOpacity="0.9"/>
+      </linearGradient>
+    </defs>
+    {/* stylized "D" using rounded rect + cutout — evokes DeepSeek visual identity */}
+    <path
+      d="M5 3.6A2.6 2.6 0 0 1 7.6 1H13.6C18 1 21 4.1 21 8.6v6.8C21 19.9 18 23 13.6 23H7.6A2.6 2.6 0 0 1 5 20.4V3.6Z"
+      fill="url(#ds-logo-g)"
+      opacity="0.1"
+    />
+    <path
+      d="M8.2 5.3c.5 0 .8.4.8.9V17.8c0 .5-.3.9-.8.9s-.8-.4-.8-.9V6.2c0-.5.3-.9.8-.9Zm3.34 0h1.9c2.8 0 5 2 5 4.6v2.2c0 2.6-2.2 4.6-5 4.6h-1.9c-.4 0-.8-.4-.8-.9V6.2c0-.5.4-.9.8-.9Zm0 1.8v5.8h1.9c1.6 0 3.3-.9 3.3-2.9v-.1c0-1.9-1.7-2.8-3.3-2.8h-1.9Z"
+      fill="url(#ds-logo-g)"
+    />
+  </svg>
+);
 };
 
 const Toggle: React.FC<{ on: boolean; onChange: (next: boolean) => void }> = ({ on, onChange }) => (

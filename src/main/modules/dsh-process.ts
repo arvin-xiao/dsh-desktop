@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import type { IPty, IPtyForkOptions } from 'node-pty';
 import { app } from 'electron';
 import type { DshStatus, DshStatusInfo } from '../../shared/types';
@@ -12,7 +13,7 @@ import {
 } from '../../shared/constants';
 import { waitForHttpReady } from './port-scanner';
 import { log } from '../utils/logger';
-import { resolveNpxExecutable } from '../utils/npx-path';
+import { resolveNpxExecutable, buildNpmExecFallback } from '../utils/npx-path';
 import { getDshPackageSpec } from './dsh-version';
 
 let ptyModule: typeof import('node-pty') | null = null;
@@ -70,12 +71,12 @@ export class DshProcess extends EventEmitter {
     this._set('starting', { port, url: `http://127.0.0.1:${port}`, error: undefined });
 
     // Resolve the npx executable bundled with (or alongside) the given node.
-    const npxPath = await resolveNpxExecutable(this.nodePath);
+    let npxPath = await resolveNpxExecutable(this.nodePath);
     const version = this.options.dshVersion || DSH_DEFAULT_VERSION;
     const pkgSpec = this.options.dshPackage
       ? this.options.dshPackage
       : getDshPackageSpec(version);
-    const args: string[] = [
+    let args: string[] = [
       '-y', pkgSpec,
       'web', '--port', String(port),
       '--host', '127.0.0.1',
@@ -89,6 +90,25 @@ export class DshProcess extends EventEmitter {
       NODE_SKIP_PLATFORM_CHECK: '1',
       ...this.options.envVars,
     };
+
+    // ---- Auto fallback: npx -> npm exec ----
+    // If npxPath is just a bare name (i.e. nothing resolved to absolute path),
+    // or we later get ENOENT, convert the command to npm exec -- <pkgSpec> ...
+    const npxLooksMissing =
+      !npxPath || !path.isAbsolute(npxPath) || !existsSync(npxPath);
+    let usedFallback = false;
+    if (npxLooksMissing) {
+      const fb = buildNpmExecFallback(this.nodePath, args);
+      log.warn(
+        '[dsh-process] npx not resolved to existing absolute file',
+        `(${npxPath}) → falling back to npm exec via`, fb.executable,
+      );
+      this.emit('stderr', `\r\n[DSH Desktop] npx 未在 PATH 中找到，改用 npm exec 启动 …\r\n`);
+      npxPath = fb.executable;
+      args = fb.args;
+      Object.assign(envVars, fb.envAdd);
+      usedFallback = true;
+    }
 
     const pty = loadPty();
     const useFallback = !pty;
@@ -110,7 +130,23 @@ export class DshProcess extends EventEmitter {
           this._pty = pty.spawn(shell, shellArgs, ptyOpts);
         } else {
           log.info('[dsh-process] pty spawn unix', npxPath, args.join(' '));
-          this._pty = pty.spawn(npxPath, args, ptyOpts);
+          try {
+            this._pty = pty.spawn(npxPath, args, ptyOpts);
+          } catch (spawnErr: any) {
+            // On macOS the PTY layer can throw ENOENT even when child_process
+            // wouldn't — retry once with npm exec fallback.
+            if (!usedFallback && /ENOENT|not found/i.test(spawnErr?.message || '')) {
+              log.warn('[dsh-process] pty spawn ENOENT, retry via npm exec');
+              const fb = buildNpmExecFallback(this.nodePath, args);
+              npxPath = fb.executable;
+              args = fb.args;
+              Object.assign(envVars, fb.envAdd);
+              Object.assign(ptyOpts, { env: envVars as any });
+              this._pty = pty.spawn(npxPath, args, ptyOpts);
+            } else {
+              throw spawnErr;
+            }
+          }
         }
         this._pid = this._pty.pid;
         this._pty.onData((data) => this.emit('stdout', data));
@@ -124,7 +160,18 @@ export class DshProcess extends EventEmitter {
           } catch {}
         };
       } else {
-        await this._spawnChildFallback(npxPath, args, cwd, envVars);
+        try {
+          await this._spawnChildFallback(npxPath, args, cwd, envVars);
+        } catch (spawnErr: any) {
+          if (!usedFallback && /ENOENT/i.test(spawnErr?.message || '')) {
+            log.warn('[dsh-process] child spawn ENOENT, retry via npm exec');
+            const fb = buildNpmExecFallback(this.nodePath, args);
+            Object.assign(envVars, fb.envAdd);
+            await this._spawnChildFallback(fb.executable, fb.args, cwd, envVars);
+          } else {
+            throw spawnErr;
+          }
+        }
       }
 
       const url = `http://127.0.0.1:${port}`;
