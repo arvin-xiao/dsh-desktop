@@ -14,7 +14,7 @@ import {
   getNodeDistUrl,
 } from '../../shared/constants';
 import { log } from '../utils/logger';
-import { resolveNpxExecutable } from '../utils/npx-path';
+import { resolveNpxExecutable, buildNpmExecFallback, buildAugmentedPath } from '../utils/npx-path';
 import { getDshPackageSpec } from './dsh-version';
 
 export class EnvProvisioner {
@@ -122,15 +122,29 @@ export class EnvProvisioner {
     onData?: (chunk: string) => void,
     version: string = DSH_DEFAULT_VERSION,
   ): Promise<void> {
-    const npxPath = await resolveNpxExecutable(effectiveNodePath);
     const spec = getDshPackageSpec(version);
+    const baseArgs: string[] = ['-y', spec, '--version'];
+    let exe = await resolveNpxExecutable(effectiveNodePath);
+    let args = baseArgs;
+    const env: Record<string, string> = {
+      ...process.env,
+      PATH: buildAugmentedPath(),
+      npm_config_yes: 'true',
+    };
+    if (!exe || !path.isAbsolute(exe) || !existsSync(exe)) {
+      const fb = buildNpmExecFallback(effectiveNodePath, baseArgs);
+      log.warn('[env] ensureDshInstalled: npx not found on disk → use npm exec via', fb.executable);
+      exe = fb.executable;
+      args = fb.args;
+      Object.assign(env, fb.envAdd);
+    }
     return new Promise((resolve, reject) => {
       const cwd = app.getPath('home');
-      const child = spawn(
-        npxPath,
-        ['-y', spec, '--version'],
-        { cwd, env: process.env as any, shell: process.platform === 'win32' },
-      );
+      const child = spawn(exe, args, {
+        cwd,
+        env: env as any,
+        shell: process.platform === 'win32',
+      });
       let buf = '';
       let errBuf = '';
       child.stdout?.on('data', (d) => {
@@ -143,7 +157,26 @@ export class EnvProvisioner {
         errBuf += s;
         onData?.(s);
       });
-      child.on('error', reject);
+      child.on('error', (e) => {
+        // Last-ditch retry with npm exec fallback path logic
+        if (/ENOENT/i.test((e as any).message || '')) {
+          const fb = buildNpmExecFallback(effectiveNodePath, baseArgs);
+          log.warn('[env] ensureDshInstalled spawn ENOENT → retry via', fb.executable);
+          const fbEnv = { ...env, ...fb.envAdd, PATH: buildAugmentedPath(env.PATH) };
+          const r = spawn(fb.executable, fb.args, {
+            cwd, env: fbEnv as any, shell: process.platform === 'win32',
+          });
+          r.stdout?.on('data', (d) => { const s = String(d); buf += s; onData?.(s); });
+          r.stderr?.on('data', (d) => { const s = String(d); errBuf += s; onData?.(s); });
+          r.on('error', reject);
+          r.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`ensureDshInstalled failed code=${code}: ${errBuf || buf}`));
+          });
+        } else {
+          reject(e);
+        }
+      });
       child.on('close', (code) => {
         if (code === 0) resolve();
         else reject(new Error(`ensureDshInstalled failed code=${code}: ${errBuf || buf}`));
@@ -156,39 +189,97 @@ export class EnvProvisioner {
   // ------------------------------------------------------------------
 
   private async findSystemNode(): Promise<{ path: string; version: string } | null> {
+    // IMPORTANT: in packaged Electron apps, `process.execPath` is the app's
+    // own binary (e.g. .../DSH Desktop.app/Contents/MacOS/DSH Desktop) which
+    // IS a node runtime but has no sibling `npx` / `npm`. Never return it as
+    // "system node" — prefer actual user installed nodes.
+    const isElectronPackagedApp =
+      (typeof (process.versions as any).electron === 'string') &&
+      !/[\\/]node_modules?[\\/]/.test(process.execPath);
+
+    const execPathNorm = path.resolve(process.execPath);
+    const appBundleDir = isElectronPackagedApp
+      ? path.resolve(path.dirname(process.execPath), '..')  // Contents
+      : null;
+
     const candidates: string[] = [];
     if (process.platform === 'win32') {
       candidates.push('node.exe');
+    } else if (process.platform === 'darwin') {
+      candidates.push(
+        '/opt/homebrew/bin/node',
+        '/usr/local/bin/node',
+        '/opt/local/bin/node',
+        '/usr/bin/node',
+      );
     } else {
-      candidates.push('/usr/local/bin/node', '/usr/bin/node', process.execPath);
+      candidates.push('/usr/local/bin/node', '/usr/bin/node');
     }
-    // 最后用 which/where 找
+
+    // which/where find — explicitly pass the augmented PATH (macOS GUI apps
+    // have a minimal default PATH that misses Homebrew/nvm/volta etc.)
     try {
       const found = await this.whichNode();
-      if (found && !candidates.includes(found)) candidates.push(found);
+      if (found) candidates.push(found);
     } catch {}
 
+    const isElectronBinary = (p: string): boolean => {
+      if (!isElectronPackagedApp) return false;
+      const np = path.resolve(p);
+      if (np === execPathNorm) return true;
+      if (appBundleDir) {
+        const rel = path.relative(appBundleDir, np);
+        if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) return true;
+      }
+      return false;
+    };
+
+    const hasSiblingNpxOrNpm = (dir: string): boolean => {
+      const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+      const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      try {
+        return existsSync(path.join(dir, npx)) || existsSync(path.join(dir, npm));
+      } catch { return false; }
+    };
+
+    // Pass 1: strict — skip Electron binary AND require npx/npm sibling
     for (const p of candidates) {
+      if (isElectronBinary(p)) continue;
+      if (!hasSiblingNpxOrNpm(path.dirname(path.resolve(p)))) continue;
       try {
         const v = await this.getNodeVersion(p);
         if (v) return { path: p, version: v };
       } catch {}
     }
-    // Use current process.execPath as fallback if it looks like Node
-    try {
-      const v = await this.getNodeVersion(process.execPath);
-      if (v) return { path: process.execPath, version: v };
-    } catch {}
+
+    // Pass 2: relaxed — only skip Electron binary (catches Linux /usr/bin/node
+    // where npx/npm might live in lib/node_modules/.bin instead of next to node)
+    for (const p of candidates) {
+      if (isElectronBinary(p)) continue;
+      try {
+        const v = await this.getNodeVersion(p);
+        if (v) return { path: p, version: v };
+      } catch {}
+    }
+
     return null;
   }
 
   private whichNode(): Promise<string | null> {
     return new Promise((resolve) => {
       const cmd = process.platform === 'win32' ? 'where' : 'which';
-      execFile(cmd, ['node'], (err, stdout) => {
+      // Pass augmented PATH explicitly so that macOS GUI app context finds
+      // Homebrew / nvm / volta / nodenv / asdf installations.
+      const augmentedPath = buildAugmentedPath();
+      const envWithPath = { ...process.env, PATH: augmentedPath };
+      execFile(cmd, ['node'], { env: envWithPath } as any, (err, stdout) => {
         if (err) return resolve(null);
-        const line = String(stdout || '').split(/\r?\n/)[0]?.trim();
-        resolve(line || null);
+        const raw = String(stdout || '').split(/\r?\n/)[0]?.trim();
+        if (!raw) return resolve(null);
+        // `which` on macOS escapes spaces with backslashes: /path/with\ spaces/node
+        // Unescape them so the returned path is usable with existsSync / path.resolve
+        const unescaped = raw.replace(/\\ /g, ' ');
+        resolve(unescaped || null);
       });
     });
   }
@@ -231,34 +322,67 @@ export class EnvProvisioner {
     nodePath: string,
     version: string = DSH_DEFAULT_VERSION,
   ): Promise<{ ok: true; version: string } | { ok: false }> {
-    const npxPath = await resolveNpxExecutable(nodePath);
-    const spec = getDshPackageSpec(version);
+    const baseArgs: string[] = ['-y', getDshPackageSpec(version), '--version'];
+    let exe = await resolveNpxExecutable(nodePath);
+    let args = baseArgs;
+    const env: Record<string, string> = {
+      ...process.env,
+      PATH: buildAugmentedPath(),
+      npm_config_yes: 'true',
+    };
+    if (!exe || !path.isAbsolute(exe) || !existsSync(exe)) {
+      const fb = buildNpmExecFallback(nodePath, baseArgs);
+      exe = fb.executable;
+      args = fb.args;
+      Object.assign(env, fb.envAdd);
+    }
     return new Promise((resolve) => {
       const timeout = setTimeout(
         () => resolve({ ok: false }),
         15_000,
       );
-      const child = spawn(npxPath, ['-y', spec, '--version'], {
-        cwd: app.getPath('home'),
-        env: { ...process.env, npm_config_yes: 'true' } as any,
-        shell: process.platform === 'win32',
-      });
-      let out = '';
-      child.stdout?.on('data', (d) => (out += String(d)));
-      child.stderr?.on('data', () => {});
-      child.on('error', () => {
-        clearTimeout(timeout);
-        resolve({ ok: false });
-      });
-      child.on('close', (code) => {
-        clearTimeout(timeout);
-        if (code === 0) {
-          const m = out.trim().match(/(\d+\.\d+\.\d+[^\s]*)/);
-          resolve({ ok: true, version: m ? m[1] : out.trim() });
-        } else {
-          resolve({ ok: false });
-        }
-      });
+      const spawnOne = (e: string, a: string[]) => {
+        const child = spawn(e, a, {
+          cwd: app.getPath('home'),
+          env: env as any,
+          shell: process.platform === 'win32',
+        });
+        let out = '';
+        child.stdout?.on('data', (d) => (out += String(d)));
+        child.stderr?.on('data', () => {});
+        child.on('error', (err) => {
+          // If ENOENT and we haven't used fallback yet, retry via npm exec
+          clearTimeout(timeout);
+          if (!/ENOENT/.test((err as any).message || '')) return resolve({ ok: false });
+          const fb = buildNpmExecFallback(nodePath, baseArgs);
+          const fbEnv = { ...env, ...fb.envAdd, PATH: buildAugmentedPath(env.PATH) };
+          const r = spawn(fb.executable, fb.args, {
+            cwd: app.getPath('home'), env: fbEnv as any, shell: process.platform === 'win32',
+          });
+          const t2 = setTimeout(() => resolve({ ok: false }), 15_000);
+          let out2 = '';
+          r.stdout?.on('data', (d) => (out2 += String(d)));
+          r.stderr?.on('data', () => {});
+          r.on('error', () => { clearTimeout(t2); resolve({ ok: false }); });
+          r.on('close', (code) => {
+            clearTimeout(t2);
+            if (code === 0) {
+              const m = out2.trim().match(/(\d+\.\d+\.\d+[^\s]*)/);
+              resolve({ ok: true, version: m ? m[1] : out2.trim() });
+            } else resolve({ ok: false });
+          });
+        });
+        child.on('close', (code) => {
+          clearTimeout(timeout);
+          if (code === 0) {
+            const m = out.trim().match(/(\d+\.\d+\.\d+[^\s]*)/);
+            resolve({ ok: true, version: m ? m[1] : out.trim() });
+          } else {
+            resolve({ ok: false });
+          }
+        });
+      };
+      spawnOne(exe, args);
     });
   }
 

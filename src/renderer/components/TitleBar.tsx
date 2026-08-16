@@ -24,11 +24,20 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
   return (
     <div className="titlebar">
       <div className="brand">
-        <div className="brand-badge">D</div>
-        <div>DSH Desktop</div>
-        <div className="badge" style={{ marginLeft: 4 }}>
-          {status.url ? status.url.replace('http://', '') : 'local'}
+        <div className="brand-badge" title="DeepSeek Harness">
+          <DeepSeekLogoMark />
         </div>
+        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+          <div style={{ fontWeight: 700, letterSpacing: 0.2, fontSize: 13 }}>DSH Desktop</div>
+          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 500, marginTop: 1, letterSpacing: 0.3 }}>
+            DeepSeek Harness
+          </div>
+        </div>
+        {status.url && (
+          <div className="badge" style={{ marginLeft: 4 }}>
+            {status.url.replace('http://', '')}
+          </div>
+        )}
       </div>
 
       <div className="spacer" />
@@ -84,5 +93,26 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
     </div>
   );
 };
+
+// ---- DeepSeek brand logo mark (matches CSS gradient block) ----
+const DeepSeekLogoMark: React.FC = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <defs>
+      <linearGradient id="tblogo-g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#fff" stopOpacity="0.98"/>
+        <stop offset="100%" stopColor="#fff" stopOpacity="0.88"/>
+      </linearGradient>
+    </defs>
+    <path
+      d="M5.2 4.2A1.8 1.8 0 0 1 7 2.4h6.4c5 0 9 4.1 9 9v5.2c0 5-4 9-9 9H7a1.8 1.8 0 0 1-1.8-1.8V4.2Z"
+      fill="url(#tblogo-g)"
+      opacity="0.08"
+    />
+    <path
+      d="M8.2 6c.55 0 1 .45 1 1v10c0 .55-.45 1-1 1s-1-.45-1-1V7c0-.55.45-1 1-1Zm3.6 0h2c2.9 0 5.2 2.3 5.2 5.2v1.6c0 2.9-2.3 5.2-5.2 5.2h-2c-.55 0-1-.45-1-1V7c0-.55.45-1 1-1Zm0 1.8v6.8h2c1.7 0 3.2-1.3 3.2-3.2v-.4c0-1.9-1.5-3.2-3.2-3.2h-2Z"
+      fill="url(#tblogo-g)"
+    />
+  </svg>
+);
 
 export default TitleBar;

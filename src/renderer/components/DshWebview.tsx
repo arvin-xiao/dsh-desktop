@@ -44,11 +44,13 @@ const DshWebview: React.FC<Props> = ({ status, envReport, starting, envProgress,
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
               <div style={{
-                width: 64, height: 64, borderRadius: 16,
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                width: 72, height: 72, borderRadius: 20,
+                background: 'linear-gradient(135deg, #4D6BFE 0%, #8B7CFF 100%)',
                 color: 'white', display: 'grid', placeItems: 'center',
-                fontSize: 28, fontWeight: 800,
-              }}>DSH</div>
+                boxShadow: '0 12px 32px rgba(77,107,254,0.35)',
+              }}>
+                <DeepSeekLogoSvg size={44} />
+              </div>
             </div>
             <h2>Welcome to DeepSeek Harness</h2>
             <p>
@@ -180,5 +182,27 @@ function startingProgress(p: { pct: number } | null): number {
   return Math.max(5, Math.min(95, p.pct * 100));
 }
 function clampPercent(n: number): number { return Math.max(0, Math.min(100, n)); }
+
+const DeepSeekLogoSvg: React.FC<{ size?: number }> = ({ size = 40 }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+    <defs>
+      <linearGradient id="dsh-logo-inner" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.98" />
+        <stop offset="100%" stopColor="#ffffff" stopOpacity="0.85" />
+      </linearGradient>
+    </defs>
+    {/* rounded rect "D" shape — DeepSeek-inspired mark */}
+    <path
+      d="M10 6.5A3.5 3.5 0 0 1 13.5 3H28.5C36 3 42 9.1 42 16.5v15C42 38.9 36 45 28.5 45H13.5A3.5 3.5 0 0 1 10 41.5V6.5Z"
+      fill="url(#dsh-logo-inner)"
+      opacity="0.08"
+    />
+    {/* stylized letters "D" and "S" — evokes DeepSeek Harness brand */}
+    <path
+      d="M16 12.5c.7 0 1.2.5 1.2 1.2V34.3c0 .7-.5 1.2-1.2 1.2s-1.2-.5-1.2-1.2V13.7c0-.7.5-1.2 1.2-1.2Zm5 0.5h2.9c4.3 0 7.7 3.1 7.7 7.2v4.1c0 4.1-3.4 7.2-7.7 7.2H21c-.7 0-1.2-.5-1.2-1.2V13.7c0-.7.5-1.2 1.2-1.2Zm0 2.8v9h2.9c2.5 0 4.8-1.5 4.8-4.4v-.2c0-2.8-2.3-4.4-4.8-4.4H21Zm8.6 1.3c0-.7.5-1.2 1.2-1.2h2.7c.7 0 1.2.5 1.2 1.2v1.8c0 .7-.5 1.2-1.2 1.2h-1.3c-.7 0-1.2.5-1.2 1.2v1.2c0 .7.5 1.2 1.2 1.2h1.3c.7 0 1.2.5 1.2 1.2v1.8c0 .7-.5 1.2-1.2 1.2h-2.7c-.7 0-1.2-.5-1.2-1.2v-1.6c0-.7.5-1.2 1.2-1.2h1.3c.7 0 1.2-.5 1.2-1.2v-.8c0-.7-.5-1.2-1.2-1.2h-1.3c-.7 0-1.2-.5-1.2-1.2v-1.6Z"
+      fill="url(#dsh-logo-inner)"
+    />
+  </svg>
+);
 
 export default DshWebview;
