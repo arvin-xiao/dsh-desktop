@@ -69,6 +69,28 @@ const app = {
   relaunch: (): Promise<void> => ipcRenderer.invoke(IpcChannels.APP_RELAUNCH),
 };
 
+/**
+ * Platform the app currently runs on.
+ * Renderer can use this to toggle platform-specific UI chrome, e.g. hide
+ * custom minimize/maximize/close buttons on Windows where titleBarOverlay
+ * provides native caption controls (138px wide on the right), or adjust
+ * brand-badge padding so macOS traffic lights (72–80px on the left) don't
+ * overlap the app identity.
+ */
+const platform: NodeJS.Platform = (() => {
+  // userAgentData only exists in Chromium-based browsers (Electron qualifies)
+  // but TypeScript's DOM lib may not include the type on Navigator.
+  const navAny = navigator as any;
+  const pFromUaData: string | undefined = navAny.userAgentData?.platform;
+  if (pFromUaData) return pFromUaData as NodeJS.Platform;
+  // Fallback chain for user-agent sniffing
+  const ua = navigator.userAgent;
+  if (/Mac OS X|Macintosh/.test(ua)) return 'darwin';
+  if (/Windows|Win32|Win64/.test(ua)) return 'win32';
+  if (/Linux|X11/.test(ua)) return 'linux';
+  return 'unknown' as NodeJS.Platform;
+})();
+
 export interface DshDesktopApi {
   dsh: typeof dsh;
   env: typeof env;
@@ -76,6 +98,7 @@ export interface DshDesktopApi {
   window: typeof window;
   shell: typeof shell;
   app: typeof app;
+  platform: NodeJS.Platform;
 }
 
 const api: DshDesktopApi = {
@@ -85,6 +108,16 @@ const api: DshDesktopApi = {
   window,
   shell,
   app,
+  platform,
 };
 
 contextBridge.exposeInMainWorld('dsh', api);
+
+// Immediately tag <body> with the platform so pure-CSS chrome can adapt too
+// (for example hide custom caption buttons on Windows, size the drag row
+// correctly on macOS).  Rendered surfaces inside the <webview> are isolated
+// and won't see this attribute.
+try {
+  document.documentElement.dataset.platform = platform;
+  document.body.dataset.platform = platform;
+} catch {}

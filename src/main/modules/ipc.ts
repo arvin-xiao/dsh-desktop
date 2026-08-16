@@ -95,7 +95,10 @@ export function registerIpcHandlers(rt: Runtime) {
     await rt.dsh.stop();
   });
   ipcMain.handle(IpcChannels.DSH_RESTART, async () => {
-    if (!rt.dsh) return ipcMain.emit(IpcChannels.DSH_START);
+    if (!rt.dsh) {
+      // No running process — delegate to start logic
+      return ipcMain.invoke(IpcChannels.DSH_START);
+    }
     const store = getStore();
     const settings = store.store as AppSettings;
     const port = await findFreePort(settings.dsh.preferredPort, 20);

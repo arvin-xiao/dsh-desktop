@@ -42,58 +42,41 @@ const DshWebview: React.FC<Props> = ({ status, envReport, starting, envProgress,
       <div className="webview-wrap">
         <div className="webview-placeholder">
           <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-              <div style={{
-                width: 72, height: 72, borderRadius: 20,
-                background: 'linear-gradient(135deg, #4D6BFE 0%, #8B7CFF 100%)',
-                color: 'white', display: 'grid', placeItems: 'center',
-                boxShadow: '0 12px 32px rgba(77,107,254,0.35)',
-              }}>
-                <DeepSeekLogoSvg size={44} />
-              </div>
+            <div className="brand-badge-hero">
+              <DeepSeekLogoSvg size={44} />
             </div>
             <h2>Welcome to DeepSeek Harness</h2>
-            <p>
+            <p className="subtitle">
               An agent harness with everything as plugins. Click <b>Start DeepSeek Harness</b> to
               boot the runtime and begin.
             </p>
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-              textAlign: 'left',
-              marginTop: 18,
-              padding: 14,
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-              background: 'var(--bg-elev-2)',
-            }}>
+            <div className="env-summary-card">
               <EnvSummary envReport={envReport} />
               {status.status === 'error' && (
-                <div className="badge err" style={{ alignSelf: 'flex-start' }}>
+                <div className="chip err" style={{ alignSelf: 'flex-start' }}>
                   Error: {status.error || 'Unknown'}
                 </div>
               )}
               {(starting || status.status === 'starting') && (
                 <div className="progress">
-                  <div className="bar" style={{ width: `${clampPercent(startingProgress(envProgress))}%` }} />
+                  <span style={{ width: `${clampPercent(startingProgress(envProgress))}%` }} />
                 </div>
               )}
               {needNodeDownload && (
-                <div className="badge warn" style={{ alignSelf: 'flex-start' }}>
+                <div className="chip warn" style={{ alignSelf: 'flex-start' }}>
                   No Node.js &ge; {MIN_NODE_VERSION} detected. Click Start to download automatically.
                 </div>
               )}
             </div>
-            <div style={{ height: 18 }} />
-            <button
-              className="btn primary"
-              onClick={onStart}
-              disabled={starting || status.status === 'starting'}
-              style={{ padding: '10px 20px', fontSize: 14 }}
-            >
-              {starting ? 'Starting up…' : needNodeDownload ? 'Download Node.js & Start' : 'Start DeepSeek Harness'}
-            </button>
+            <div className="actions">
+              <button
+                className="btn primary"
+                onClick={onStart}
+                disabled={starting || status.status === 'starting'}
+              >
+                {starting ? 'Starting up…' : needNodeDownload ? 'Download Node.js & Start' : 'Start DeepSeek Harness'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -106,8 +89,8 @@ const DshWebview: React.FC<Props> = ({ status, envReport, starting, envProgress,
         <div className="webview-placeholder">
           <div className="card">
             <h2>Loading DSH UI…</h2>
-            <p>Waiting for the web interface to load at {status.url}.</p>
-            <div className="progress"><div className="bar" style={{ width: '60%' }} /></div>
+            <p className="subtitle">Waiting for the web interface to load at {status.url}.</p>
+            <div className="progress"><span style={{ width: '60%' }} /></div>
           </div>
         </div>
       )}
@@ -142,38 +125,44 @@ const DshWebview: React.FC<Props> = ({ status, envReport, starting, envProgress,
 };
 
 function EnvSummary({ envReport }: { envReport: EnvReport | null }) {
-  if (!envReport) return <div className="badge">Checking runtime…</div>;
+  if (!envReport) return <div className="chip">Checking runtime…</div>;
   return (
-    <ul className="report-list">
-      <li>
-        <span>System Node</span>
+    <>
+      <SummaryRow label="System Node">
         {envReport.systemNode ? (
-          <span className={envReport.systemNodeSatisfies ? 'badge ok' : 'badge warn'}>
+          <span className={`chip ${envReport.systemNodeSatisfies ? 'ok' : 'warn'}`}>
             {envReport.systemNode.version}
           </span>
         ) : (
-          <span className="badge err">Not found</span>
+          <span className="chip err">Not found</span>
         )}
-      </li>
-      <li>
-        <span>Portable Node</span>
+      </SummaryRow>
+      <SummaryRow label="Portable Node">
         {envReport.bundledNode ? (
-          <span className="badge ok">{envReport.bundledNode.version}</span>
+          <span className="chip ok">{envReport.bundledNode.version}</span>
         ) : (
-          <span className="badge">Not cached</span>
+          <span className="chip">Not cached</span>
         )}
-      </li>
-      <li>
-        <span>dsh package</span>
+      </SummaryRow>
+      <SummaryRow label="dsh package">
         {envReport.dshInstalled ? (
-          <span className="badge ok">
+          <span className="chip ok">
             {envReport.dshVersion ? `v${envReport.dshVersion}` : 'Installed'}
           </span>
         ) : (
-          <span className="badge warn">Not installed (will auto-install)</span>
+          <span className="chip warn">Not installed (will auto-install)</span>
         )}
-      </li>
-    </ul>
+      </SummaryRow>
+    </>
+  );
+}
+
+function SummaryRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="row">
+      <span className="l">{label}</span>
+      {children}
+    </div>
   );
 }
 

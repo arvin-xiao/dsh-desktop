@@ -50,14 +50,14 @@ export class WindowManager {
         : Math.max(0, workArea.y + Math.floor((workArea.height - height) / 2));
 
     const iconPath = this._getIconPath();
-    const win = new BrowserWindow({
+    const platform = process.platform;
+
+    // ---- Base window options (frame: custom titlebar drawn by renderer) ----
+    const baseOpts: Electron.BrowserWindowConstructorOptions = {
       x, y, width, height,
       minWidth: 1024,
       minHeight: 640,
-      frame: false,
-      titleBarStyle: 'hiddenInset', // macOS 使用原生交通灯，和 frame(false) 兼容
       show: false,
-      backgroundColor: '#0f172a',
       icon: iconPath ? nativeImage.createFromPath(iconPath) : undefined,
       webPreferences: {
         preload: path.join(__dirname, '..', 'preload', 'index.js'),
@@ -67,7 +67,53 @@ export class WindowManager {
         webviewTag: true,
         webSecurity: true,
       },
-    });
+    };
+
+    // ---- Platform-specific native chrome + materials ----
+    // Reference: anywhere-labs/deepseek-harness-desktop (window-options.ts / window-chrome.ts)
+    //   macOS   : hiddenInset titleBar + traffic light position + sidebar vibrancy
+    //   Windows : hidden titleBar + Mica material + titleBarOverlay for caption controls
+    let winOpts: Electron.BrowserWindowConstructorOptions;
+
+    if (platform === 'darwin') {
+      winOpts = {
+        ...baseOpts,
+        frame: false,
+        titleBarStyle: 'hiddenInset',
+        trafficLightPosition: { x: 18, y: 18 },
+        transparent: true,
+        backgroundColor: '#00000000',
+        vibrancy: 'sidebar',
+        visualEffectState: 'followWindow',
+      };
+    } else if (platform === 'win32') {
+      winOpts = {
+        ...baseOpts,
+        frame: false,
+        titleBarStyle: 'hidden',
+        titleBarOverlay: {
+          color: '#00000000',
+          symbolColor: '#7f858f',
+          height: 32,
+        },
+        autoHideMenuBar: true,
+        backgroundColor: '#00000000',
+        backgroundMaterial: 'mica',
+        hasShadow: true,
+        roundedCorners: true,
+        thickFrame: true,
+      };
+    } else {
+      // Linux / fallback
+      winOpts = {
+        ...baseOpts,
+        frame: false,
+        titleBarStyle: 'hiddenInset',
+        backgroundColor: '#F9FAFB',
+      };
+    }
+
+    const win = new BrowserWindow(winOpts);
 
     if (settings.window.maximized) {
       win.maximize();
@@ -269,20 +315,26 @@ export class WindowManager {
 
   // ---------------- internals ----------------
 
+  private _persistTimer: ReturnType<typeof setTimeout> | null = null;
   private _persistWindowState() {
     const w = this.mainWindow;
     if (!w) return;
-    const store = getStore();
-    const current = (store.store || {}) as AppSettings;
-    try {
-      const bounds = w.getBounds();
-      const maximized = w.isMaximized();
-      store.set('window', {
-        ...current.window,
-        maximized,
-        bounds: maximized ? current.window.bounds : bounds,
-      });
-    } catch {}
+    // Debounce: resize/move events fire rapidly during drag; coalesce writes
+    if (this._persistTimer) clearTimeout(this._persistTimer);
+    this._persistTimer = setTimeout(() => {
+      this._persistTimer = null;
+      const store = getStore();
+      const current = (store.store || {}) as AppSettings;
+      try {
+        const bounds = w.getBounds();
+        const maximized = w.isMaximized();
+        store.set('window', {
+          ...current.window,
+          maximized,
+          bounds: maximized ? current.window.bounds : bounds,
+        });
+      } catch {}
+    }, 500);
   }
 
   private _updateTrayTooltip() {

@@ -21,6 +21,13 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
     error: 'Error',
   };
 
+  const dotClass = (() => {
+    if (status.status === 'running') return 'ready';
+    if (status.status === 'error') return 'error';
+    if (status.status === 'starting' || status.status === 'stopping') return 'booting';
+    return '';
+  })();
+
   return (
     <div className="titlebar">
       <div className="brand">
@@ -28,13 +35,11 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
           <DeepSeekLogoMark />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-          <div style={{ fontWeight: 700, letterSpacing: 0.2, fontSize: 13 }}>DSH Desktop</div>
-          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 500, marginTop: 1, letterSpacing: 0.3 }}>
-            DeepSeek Harness
-          </div>
+          <div className="brand-name">DSH Desktop</div>
+          <div className="brand-sub">DeepSeek Harness</div>
         </div>
         {status.url && (
-          <div className="badge" style={{ marginLeft: 4 }}>
+          <div className="chip" style={{ marginLeft: 10, fontSize: 10.5 }}>
             {status.url.replace('http://', '')}
           </div>
         )}
@@ -42,15 +47,15 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
 
       <div className="spacer" />
 
-      <div className="status">
-        <span className={`dot ${status.status}`} />
+      <div className="status" style={{ display: 'flex', alignItems: 'center', gap: 6, paddingRight: 10, color: 'var(--label-secondary)', fontSize: 12 }}>
+        <span className={`status-dot ${dotClass}`} />
         <span>{label[status.status]}</span>
-        {status.port && <span style={{ marginLeft: 6 }} className="badge">:{status.port}</span>}
+        {status.port && <span className="chip" style={{ fontSize: 10.5 }}>:{status.port}</span>}
       </div>
 
-      <div className="actions">
+      <div className="toolbar">
         <button
-          className="tb-btn"
+          className="tbtn"
           title="Settings"
           onClick={(e) => { e.stopPropagation(); onOpenSettings(); }}
           aria-label="Settings"
@@ -58,7 +63,7 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
         <button
-          className="tb-btn"
+          className="tbtn"
           title="Minimize"
           onClick={(e) => { e.stopPropagation(); void window.dsh.window.minimize(); }}
           aria-label="Minimize"
@@ -66,7 +71,7 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
           <svg width="14" height="14" viewBox="0 0 14 14"><path d="M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/></svg>
         </button>
         <button
-          className="tb-btn"
+          className="tbtn"
           title={isMax ? 'Restore' : 'Maximize'}
           onClick={async (e) => {
             e.stopPropagation();
@@ -82,10 +87,11 @@ const TitleBar: React.FC<Props> = ({ status, onOpenSettings }) => {
           )}
         </button>
         <button
-          className="tb-btn close"
+          className="tbtn close"
           title="Close"
           onClick={(e) => { e.stopPropagation(); void window.dsh.window.close(); }}
           aria-label="Close"
+          style={{ marginLeft: 2 }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M1 1l12 12M13 1L1 13"/></svg>
         </button>

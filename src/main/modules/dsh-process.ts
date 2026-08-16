@@ -194,7 +194,6 @@ export class DshProcess extends EventEmitter {
     if (this._status === 'idle' || this._status === 'stopping') return;
     this._set('stopping');
     log.info('[dsh-process] stopping timeoutMs=', timeoutMs, 'pid=', this._pid);
-    const stopped = this._onProcessExit._done;
     const deadline = Date.now() + timeoutMs;
     // Try to send graceful kill through PTY or platform-specific kill
     try {
@@ -268,7 +267,6 @@ export class DshProcess extends EventEmitter {
     signal?: string,
     extraErr?: string,
   ) => {
-    (this._onProcessExit as any)._done = true;
     if (this._status === 'stopping' || this._status === 'idle') {
       this._set('idle', { pid: undefined, port: undefined, url: undefined });
       return;

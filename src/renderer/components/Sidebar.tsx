@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { DshStatusInfo } from '@shared/types';
 
 interface Props {
@@ -15,63 +15,85 @@ const Sidebar: React.FC<Props> = ({ status, starting, onStart, onStop, onRestart
   const busy = starting || status.status === 'starting' || status.status === 'stopping';
   return (
     <aside className="sidebar">
-      <div className="section">
-        <h4>Control</h4>
-        <button
-          className="side-btn primary"
-          disabled={busy || running}
-          onClick={onStart}
-        >
-          <PlayIcon /> {starting ? 'Starting…' : running ? 'Already Running' : 'Start DeepSeek Harness'}
+      <div className="section-title">Control</div>
+      <button
+        className="btn primary"
+        disabled={busy || running}
+        onClick={onStart}
+      >
+        <PlayIcon /> {starting ? 'Starting…' : running ? 'Already Running' : 'Start DeepSeek Harness'}
+      </button>
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <button className="btn" style={{ flex: 1 }} disabled={!running} onClick={onRestart}>
+          <RefreshIcon /> Restart
         </button>
-        <div style={{ height: 6 }} />
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="side-btn" style={{ flex: 1 }} disabled={!running} onClick={onRestart}>
-            <RefreshIcon /> Restart
-          </button>
-          <button className="side-btn" style={{ flex: 1 }} disabled={!running} onClick={onStop}>
-            <StopIcon /> Stop
-          </button>
+        <button className="btn" style={{ flex: 1 }} disabled={!running} onClick={onStop}>
+          <StopIcon /> Stop
+        </button>
+      </div>
+
+      <div className="spacer" />
+
+      <div className="section-title">Quick Links</div>
+      <button className="btn" onClick={() => void window.dsh.shell.openExternal('https://deepseek-harness.github.io/deepseek-harness/')}>
+        <BookIcon /> Documentation
+      </button>
+      <button className="btn" onClick={() => void window.dsh.shell.openExternal('https://github.com/deepseek-ai/deepseek-harness')}>
+        <GithubIcon /> GitHub Repository
+      </button>
+      <button className="btn" onClick={() => void window.dsh.shell.openExternal('https://github.com/topics/dsh-plugin')}>
+        <PuzzleIcon /> Community Plugins
+      </button>
+
+      <div style={{ height: 12 }} />
+      <div className="section-title">App</div>
+      <button className="btn" onClick={onOpenSettings}>
+        <CogIcon /> Settings
+      </button>
+      <button className="btn" onClick={() => {
+        if (confirm('Restart DSH Desktop?')) void window.dsh.app.relaunch();
+      }}>
+        <RepeatIcon /> Relaunch App
+      </button>
+      <button className="btn" onClick={() => {
+        if (confirm('Quit DSH Desktop?')) void window.dsh.app.quit();
+      }}>
+        <QuitIcon /> Quit
+      </button>
+
+      <div className="status-row">
+        <div className="avatar" title="DeepSeek Harness Desktop">
+          <MiniBrandMark />
         </div>
-      </div>
-
-      <div className="section">
-        <h4>Quick Links</h4>
-        <button className="side-btn" onClick={() => void window.dsh.shell.openExternal('https://deepseek-harness.github.io/deepseek-harness/')}>
-          <BookIcon /> Documentation
-        </button>
-        <button className="side-btn" onClick={() => void window.dsh.shell.openExternal('https://github.com/deepseek-ai/deepseek-harness')}>
-          <GithubIcon /> GitHub Repository
-        </button>
-        <button className="side-btn" onClick={() => void window.dsh.shell.openExternal('https://github.com/topics/dsh-plugin')}>
-          <PuzzleIcon /> Community Plugins
-        </button>
-      </div>
-
-      <div className="section">
-        <h4>App</h4>
-        <button className="side-btn" onClick={onOpenSettings}>
-          <CogIcon /> Settings
-        </button>
-        <button className="side-btn" onClick={() => {
-          if (confirm('Restart DSH Desktop?')) void window.dsh.app.relaunch();
-        }}>
-          <RepeatIcon /> Relaunch App
-        </button>
-        <button className="side-btn" onClick={() => {
-          if (confirm('Quit DSH Desktop?')) void window.dsh.app.quit();
-        }}>
-          <QuitIcon /> Quit
-        </button>
-      </div>
-
-      <div className="side-footer">
-        <span>DSH Desktop</span>
-        <span>0.1.0</span>
+        <div className="who">
+          <div className="n">DeepSeek Harness</div>
+          <div className="v">Desktop · 0.1.0</div>
+        </div>
       </div>
     </aside>
   );
 };
+
+// Tiny brand mark used in the sidebar footer (matches titlebar plaque).
+const MiniBrandMark: React.FC = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <defs>
+      <linearGradient id="sb-avatar-g" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#fff" stopOpacity="0.98"/>
+        <stop offset="100%" stopColor="#fff" stopOpacity="0.88"/>
+      </linearGradient>
+    </defs>
+    <path
+      d="M5.2 4.2A1.8 1.8 0 0 1 7 2.4h6.4c5 0 9 4.1 9 9v5.2c0 5-4 9-9 9H7a1.8 1.8 0 0 1-1.8-1.8V4.2Z"
+      fill="url(#sb-avatar-g)"
+      opacity="0.1"
+    />
+    <path
+      d="M8.2 6c.55 0 1 .45 1 1v10c0 .55-.45 1-1 1s-1-.45-1-1V7c0-.55.45-1 1-1Zm3.6 0h2c2.9 0 5.2 2.3 5.2 5.2v1.6c0 2.9-2.3 5.2-5.2 5.2h-2c-.55 0-1-.45-1-1V7c0-.55.45-1 1-1Zm0 1.8v6.8h2c1.7 0 3.2-1.3 3.2-3.2v-.4c0-1.9-1.5-3.2-3.2-3.2h-2Z"
+      fill="url(#sb-avatar-g)"
+    />
+  </svg>
+);
 
 // ----- icons -----
 const icon = (d: string) => (

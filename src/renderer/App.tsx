@@ -33,6 +33,41 @@ const App: React.FC = () => {
     })();
   }, []);
 
+  // ---- Apply theme (light / dark / system) ----
+  useEffect(() => {
+    if (!settings) return;
+    const apply = (isDark: boolean) => {
+      const root = document.documentElement;
+      const body = document.body;
+      if (isDark) {
+        root.dataset.dark = 'true';
+        body.dataset.dark = 'true';
+        root.setAttribute('data-ds-dark-theme', '');
+        body.style.background = '#151517';
+        body.style.color = '#f9fafb';
+      } else {
+        delete root.dataset.dark;
+        delete body.dataset.dark;
+        root.removeAttribute('data-ds-dark-theme');
+        body.style.background = '#ffffff';
+        body.style.color = '#0f1115';
+      }
+    };
+
+    if (settings.app.theme === 'dark') {
+      apply(true);
+    } else if (settings.app.theme === 'light') {
+      apply(false);
+    } else {
+      // system: listen to native color scheme changes
+      const mql = window.matchMedia('(prefers-color-scheme: dark)');
+      apply(mql.matches);
+      const handler = (e: MediaQueryListEvent) => apply(e.matches);
+      mql.addEventListener('change', handler);
+      return () => mql.removeEventListener('change', handler);
+    }
+  }, [settings?.app.theme]);
+
   // env inspect on start
   useEffect(() => {
     (async () => {
@@ -43,7 +78,8 @@ const App: React.FC = () => {
         log.error('env inspect fail', e);
       }
     })();
-    return window.dsh.env.onProgress((p: any) => setEnvProgress(p));
+    const off = window.dsh.env.onProgress((p: any) => setEnvProgress(p));
+    return () => { off(); };
   }, []);
 
   // dsh events
@@ -140,7 +176,7 @@ const App: React.FC = () => {
           onOpenSettings={() => setShowSettings(true)}
         />
 
-        <div className="main" style={{ minHeight: 0 }}>
+        <div className="content" style={{ minHeight: 0 }}>
           <DshWebview
             status={status}
             envReport={envReport}

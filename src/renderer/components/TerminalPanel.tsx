@@ -123,6 +123,7 @@ const TerminalPanel: React.FC<Props> = ({ height, onHeightChange, onClose }) => 
       />
       <div className="header">
         <span className="title">Terminal — dsh process output</span>
+        <span className="spacer" />
         <button className="tbtn" onClick={() => {
           try { termRef.current?.clear(); } catch {}
         }} title="Clear">Clear</button>
