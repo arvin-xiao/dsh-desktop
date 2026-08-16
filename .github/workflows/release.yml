@@ -203,23 +203,36 @@ jobs:
           restore-keys: |
             electron-mac-arm64-${{ runner.os }}-
       - name: Build + Dist Mac arm64
+        env:
+          USE_HARD_LINKS: 'false'
         run: |
           npm run build
-          # electron-builder 读取项目根目录 electron-builder.yml 里的 afterPack 配置
+          # electron-builder 读取项目根目录 electron-builder.yml（afterPack + directories.output=release）
           npx electron-builder --config electron-builder.yml --mac --arm64 --publish never
       - name: 上传前签名自检
         run: |
-          # electron-builder 的 directories.output = release
-          DMG=$(ls release/dsh-desktop-*-arm64.dmg 2>/dev/null || ls dist/dsh-desktop-*-arm64.dmg 2>/dev/null || true)
-          echo "DMG glob = $DMG"
-          ls -lah release/ dist/ 2>/dev/null || true
+          echo "--- release/ ---"
+          ls -lah release/ 2>/dev/null || echo "(空)"
+          echo "--- dist/ ---"
+          ls -lah dist/ 2>/dev/null || echo "(空)"
+          # 如果打包成功，对 DMG 做挂载前签名验证（挂载 app 后 codesign --verify）
+          DMG_FILE="$(ls release/dsh-desktop-*-arm64.dmg 2>/dev/null | head -n1 || true)"
+          if [[ -n "$DMG_FILE" ]]; then
+            hdiutil attach "$DMG_FILE" -nobrowse -readonly -mountpoint /tmp/dsh-dmg-arm64 || true
+            APP="$(ls /tmp/dsh-dmg-arm64/*.app 2>/dev/null | head -n1 || true)"
+            if [[ -n "$APP" ]]; then
+              codesign -dvv "$APP" 2>&1 | head -n20 || true
+              codesign --verify --deep --strict "$APP" 2>&1 || true
+            fi
+            hdiutil detach /tmp/dsh-dmg-arm64 -force || true
+          fi
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mac-assets-arm64
           path: |
-            release/*-arm64.dmg
-            dist/*-arm64.dmg
+            release/*.dmg
+            dist/*.dmg
 
   build-mac-x64:
     name: Build macOS (x64)
@@ -252,21 +265,34 @@ jobs:
           restore-keys: |
             electron-mac-x64-${{ runner.os }}-
       - name: Build + Dist Mac x64
+        env:
+          USE_HARD_LINKS: 'false'
         run: |
           npm run build
           npx electron-builder --config electron-builder.yml --mac --x64 --publish never
       - name: 上传前签名自检
         run: |
-          DMG=$(ls release/dsh-desktop-*-x64.dmg 2>/dev/null || ls dist/dsh-desktop-*-x64.dmg 2>/dev/null || true)
-          echo "DMG glob = $DMG"
-          ls -lah release/ dist/ 2>/dev/null || true
+          echo "--- release/ ---"
+          ls -lah release/ 2>/dev/null || echo "(空)"
+          echo "--- dist/ ---"
+          ls -lah dist/ 2>/dev/null || echo "(空)"
+          DMG_FILE="$(ls release/dsh-desktop-*-x64.dmg 2>/dev/null | head -n1 || true)"
+          if [[ -n "$DMG_FILE" ]]; then
+            hdiutil attach "$DMG_FILE" -nobrowse -readonly -mountpoint /tmp/dsh-dmg-x64 || true
+            APP="$(ls /tmp/dsh-dmg-x64/*.app 2>/dev/null | head -n1 || true)"
+            if [[ -n "$APP" ]]; then
+              codesign -dvv "$APP" 2>&1 | head -n20 || true
+              codesign --verify --deep --strict "$APP" 2>&1 || true
+            fi
+            hdiutil detach /tmp/dsh-dmg-x64 -force || true
+          fi
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mac-assets-x64
           path: |
-            release/*-x64.dmg
-            dist/*-x64.dmg
+            release/*.dmg
+            dist/*.dmg
 
   # ---------- 创建 GitHub Release + 上传 assets ----------
   release:
